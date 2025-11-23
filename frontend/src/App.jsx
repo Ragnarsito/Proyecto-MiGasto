@@ -228,7 +228,359 @@ function DashboardPage() {
 }
 
 function MetasPage() {
-  return <h2 style={{ fontSize: "20px", fontWeight: 600 }}>Metas</h2>;
+  const [metas, setMetas] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({
+    nombre: "",
+    montoObjetivo: "",
+    montoActual: "",
+    fechaLimite: "",
+    descripcion: "",
+  });
+
+  const fetchMetas = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const res = await fetch(`${API_URL}/metas`);
+      const data = await res.json();
+      setMetas(data);
+    } catch (err) {
+      console.error(err);
+      setError("Error al cargar las metas");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMetas();
+  }, []);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    try {
+      const res = await fetch(`${API_URL}/metas`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+      if (!res.ok) throw new Error("Error al crear meta");
+
+      const nueva = await res.json();
+      setMetas((prev) => [...prev, nueva]);
+
+      setForm({
+        nombre: "",
+        montoObjetivo: "",
+        montoActual: "",
+        fechaLimite: "",
+        descripcion: "",
+      });
+    } catch (err) {
+      console.error(err);
+      setError("No se pudo crear la meta");
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      const res = await fetch(`${API_URL}/metas/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok && res.status !== 204) {
+        throw new Error("Error al eliminar meta");
+      }
+      setMetas((prev) => prev.filter((m) => m.id !== id));
+    } catch (err) {
+      console.error(err);
+      setError("No se pudo eliminar la meta");
+    }
+  };
+
+  // actualizar solo el montoActual (sumar ahorro)
+  const handleUpdateMonto = async (id, nuevoMontoActual) => {
+    try {
+      const res = await fetch(`${API_URL}/metas/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ montoActual: nuevoMontoActual }),
+      });
+
+      if (!res.ok) throw new Error("Error al actualizar meta");
+
+      const metaActualizada = await res.json();
+      setMetas((prev) => prev.map((m) => (m.id === id ? metaActualizada : m)));
+    } catch (err) {
+      console.error(err);
+      setError("No se pudo actualizar la meta");
+    }
+  };
+
+  return (
+    <div>
+      <h2 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "16px" }}>
+        Metas de ahorro
+      </h2>
+
+      {error && (
+        <p style={{ color: "#f87171", fontSize: "14px", marginBottom: "8px" }}>
+          {error}
+        </p>
+      )}
+
+      {/* Formulario nueva meta */}
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          display: "grid",
+          gap: "8px",
+          maxWidth: "520px",
+          marginBottom: "24px",
+        }}
+      >
+        <input
+          name="nombre"
+          placeholder="Nombre de la meta (ej: Viaje, Fondo emergencia)"
+          value={form.nombre}
+          onChange={handleChange}
+          style={{ padding: "6px 8px" }}
+        />
+
+        <div style={{ display: "flex", gap: "8px" }}>
+          <input
+            type="number"
+            name="montoObjetivo"
+            placeholder="Monto objetivo"
+            value={form.montoObjetivo}
+            onChange={handleChange}
+            style={{ flex: 1, padding: "6px 8px" }}
+          />
+          <input
+            type="number"
+            name="montoActual"
+            placeholder="Monto ahorrado (opcional)"
+            value={form.montoActual}
+            onChange={handleChange}
+            style={{ flex: 1, padding: "6px 8px" }}
+          />
+        </div>
+
+        <div style={{ display: "flex", gap: "8px" }}>
+          <input
+            type="date"
+            name="fechaLimite"
+            value={form.fechaLimite}
+            onChange={handleChange}
+            style={{ flex: 1, padding: "6px 8px" }}
+          />
+        </div>
+
+        <textarea
+          name="descripcion"
+          placeholder="Descripción (opcional)"
+          rows={2}
+          value={form.descripcion}
+          onChange={handleChange}
+          style={{ padding: "6px 8px", resize: "vertical" }}
+        />
+
+        <button
+          type="submit"
+          style={{
+            marginTop: "4px",
+            padding: "8px 12px",
+            backgroundColor: "#3b82f6",
+            color: "#fff",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            fontWeight: 500,
+            width: "fit-content",
+          }}
+        >
+          Crear meta
+        </button>
+      </form>
+
+      {/* Lista de metas */}
+      {loading ? (
+        <p>Cargando metas...</p>
+      ) : metas.length === 0 ? (
+        <p>Todavía no tienes metas creadas.</p>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+            gap: "12px",
+          }}
+        >
+          {metas.map((m) => {
+            const progreso =
+              m.montoObjetivo > 0
+                ? Math.min(
+                    100,
+                    Math.round((m.montoActual / m.montoObjetivo) * 100)
+                  )
+                : 0;
+
+            return (
+              <div
+                key={m.id}
+                style={{
+                  padding: "12px 14px",
+                  backgroundColor: "#111827",
+                  borderRadius: "8px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "4px",
+                  }}
+                >
+                  <h3 style={{ fontWeight: 600 }}>{m.nombre}</h3>
+                  <button
+                    onClick={() => handleDelete(m.id)}
+                    style={{
+                      padding: "2px 6px",
+                      backgroundColor: "#ef4444",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                      fontSize: "11px",
+                    }}
+                  >
+                    Eliminar
+                  </button>
+                </div>
+
+                <p
+                  style={{
+                    fontSize: "13px",
+                    opacity: 0.9,
+                    marginBottom: "4px",
+                  }}
+                >
+                  Objetivo: ${m.montoObjetivo.toLocaleString("es-CL")}
+                </p>
+                <p
+                  style={{
+                    fontSize: "13px",
+                    opacity: 0.9,
+                    marginBottom: "4px",
+                  }}
+                >
+                  Ahorrado: ${m.montoActual.toLocaleString("es-CL")} ({progreso}
+                  %)
+                </p>
+                {m.fechaLimite && (
+                  <p
+                    style={{
+                      fontSize: "12px",
+                      opacity: 0.8,
+                      marginBottom: "4px",
+                    }}
+                  >
+                    Fecha límite: {m.fechaLimite}
+                  </p>
+                )}
+                {m.descripcion && (
+                  <p
+                    style={{
+                      fontSize: "12px",
+                      opacity: 0.85,
+                      marginBottom: "6px",
+                    }}
+                  >
+                    {m.descripcion}
+                  </p>
+                )}
+
+                {/* Barra de progreso simple */}
+                <div
+                  style={{
+                    width: "100%",
+                    height: "8px",
+                    backgroundColor: "#374151",
+                    borderRadius: "999px",
+                    overflow: "hidden",
+                    marginBottom: "6px",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${progreso}%`,
+                      height: "100%",
+                      backgroundColor: "#10b981",
+                    }}
+                  />
+                </div>
+
+                {/* Formulario chiquito para actualizar montoActual */}
+                <PequeñoFormularioActualizacionMonto
+                  meta={m}
+                  onUpdate={handleUpdateMonto}
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PequeñoFormularioActualizacionMonto({ meta, onUpdate }) {
+  const [nuevoMonto, setNuevoMonto] = useState(meta.montoActual);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const valor = Number(nuevoMonto);
+    if (Number.isNaN(valor)) return;
+    onUpdate(meta.id, valor);
+  };
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      style={{ display: "flex", gap: "6px", alignItems: "center" }}
+    >
+      <input
+        type="number"
+        value={nuevoMonto}
+        onChange={(e) => setNuevoMonto(e.target.value)}
+        style={{ flex: 1, padding: "4px 6px", fontSize: "12px" }}
+      />
+      <button
+        type="submit"
+        style={{
+          padding: "4px 8px",
+          backgroundColor: "#3b82f6",
+          color: "#fff",
+          border: "none",
+          borderRadius: "4px",
+          cursor: "pointer",
+          fontSize: "11px",
+        }}
+      >
+        Actualizar
+      </button>
+    </form>
+  );
 }
 
 function AnalisisIAPage() {
