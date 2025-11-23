@@ -1,13 +1,120 @@
-// backend/server.js
 import express from "express";
 import cors from "cors";
+import dotenv from "dotenv";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
+
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 
 // Middlewares
 app.use(cors());
 app.use(express.json());
+
+// ---------------- Autenticación básica con JWT ----------------
+
+// Por ahora, usuarios en memoria
+// Puedes registrar nuevos o dejar creado uno por defecto
+let usuarios = [];
+let nextUserId = 1;
+
+// (opcional) usuario demo inicial
+usuarios.push({
+  id: nextUserId++,
+  nombre: "Usuario Demo",
+  email: "demo@migasto.cl",
+  passwordHash: bcrypt.hashSync("demo123", 10), // contraseña: demo123
+});
+
+// POST /auth/register -> registrar usuario nuevo
+app.post("/auth/register", async (req, res) => {
+  const { nombre, email, password } = req.body;
+
+  if (!nombre || !email || !password) {
+    return res
+      .status(400)
+      .json({ error: "nombre, email y password son obligatorios" });
+  }
+
+  const yaExiste = usuarios.some((u) => u.email === email);
+  if (yaExiste) {
+    return res.status(400).json({ error: "Ese email ya está registrado" });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  const nuevoUsuario = {
+    id: nextUserId++,
+    nombre,
+    email,
+    passwordHash,
+  };
+
+  usuarios.push(nuevoUsuario);
+
+  res.status(201).json({
+    id: nuevoUsuario.id,
+    nombre: nuevoUsuario.nombre,
+    email: nuevoUsuario.email,
+  });
+});
+
+// POST /auth/login -> devuelve un JWT
+app.post("/auth/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res
+      .status(400)
+      .json({ error: "email y password son obligatorios" });
+  }
+
+  const usuario = usuarios.find((u) => u.email === email);
+  if (!usuario) {
+    return res.status(401).json({ error: "Credenciales inválidas" });
+  }
+
+  const passwordOk = await bcrypt.compare(password, usuario.passwordHash);
+  if (!passwordOk) {
+    return res.status(401).json({ error: "Credenciales inválidas" });
+  }
+
+  const payload = {
+    id: usuario.id,
+    email: usuario.email,
+    nombre: usuario.nombre,
+  };
+
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "2h" });
+
+  res.json({
+    token,
+    usuario: payload,
+  });
+});
+
+
+// Middleware 
+function authMiddleware(req, res, next) {
+  const authHeader = req.headers.authorization || "";
+  const [scheme, token] = authHeader.split(" ");
+
+  if (scheme !== "Bearer" || !token) {
+    return res.status(401).json({ error: "Token requerido" });
+  }
+
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = payload; // { id, email, nombre }
+    next();
+  } catch (err) {
+    console.error("Error verificando token:", err);
+    return res.status(401).json({ error: "Token inválido o expirado" });
+  }
+}
 
 // ---------------- Movimientos (por ahora en memoria) ----------------
 
@@ -25,12 +132,12 @@ let movimientos = [];
 let nextId = 1;
 
 // GET /movimientos -> lista todos
-app.get("/movimientos", (req, res) => {
+app.get("/movimientos", authMiddleware, (req, res) => {
   res.json(movimientos);
 });
 
 // POST /movimientos -> crea uno nuevo
-app.post("/movimientos", (req, res) => {
+app.post("/movimientos", authMiddleware, (req, res) => {
   const { tipo, categoria, monto, fecha, descripcion } = req.body;
 
   if (!tipo || !categoria || !monto || !fecha) {
@@ -53,7 +160,7 @@ app.post("/movimientos", (req, res) => {
 });
 
 // PUT /movimientos/:id -> actualiza uno
-app.put("/movimientos/:id", (req, res) => {
+app.put("/movimientos/:id", authMiddleware, (req, res) => {
   const id = Number(req.params.id);
   const index = movimientos.findIndex((m) => m.id === id);
 
@@ -76,7 +183,7 @@ app.put("/movimientos/:id", (req, res) => {
 });
 
 // DELETE /movimientos/:id -> borra uno
-app.delete("/movimientos/:id", (req, res) => {
+app.delete("/movimientos/:id", authMiddleware, (req, res) => {
   const id = Number(req.params.id);
   const existe = movimientos.some((m) => m.id === id);
 
@@ -87,18 +194,20 @@ app.delete("/movimientos/:id", (req, res) => {
   movimientos = movimientos.filter((m) => m.id !== id);
   res.status(204).send(); // sin body
 });
+
+
 // ---------------- Metas (por ahora en memoria) ----------------
 
 let metas = [];
 let nextMetaId = 1;
 
 // GET /metas -> lista todas las metas
-app.get("/metas", (req, res) => {
+app.get("/metas", authMiddleware, (req, res) => {
   res.json(metas);
 });
 
 // POST /metas -> crea una nueva meta
-app.post("/metas", (req, res) => {
+app.post("/metas", authMiddleware, (req, res) => {
   const { nombre, montoObjetivo, montoActual, fechaLimite, descripcion } =
     req.body;
 
@@ -122,7 +231,7 @@ app.post("/metas", (req, res) => {
 });
 
 // PUT /metas/:id -> actualiza datos de una meta
-app.put("/metas/:id", (req, res) => {
+app.put("/metas/:id", authMiddleware, (req, res) => {
   const id = Number(req.params.id);
   const index = metas.findIndex((m) => m.id === id);
 
@@ -152,7 +261,7 @@ app.put("/metas/:id", (req, res) => {
 });
 
 // DELETE /metas/:id -> elimina una meta
-app.delete("/metas/:id", (req, res) => {
+app.delete("/metas/:id", authMiddleware, (req, res) => {
   const id = Number(req.params.id);
   const existe = metas.some((m) => m.id === id);
 
@@ -190,7 +299,6 @@ app.get("/divisas", async (req, res) => {
     res.status(500).json({ error: "No se pudo obtener tasas de cambio" });
   }
 });
-
 
 
 

@@ -4,15 +4,9 @@ import { Routes, Route, Link } from "react-router-dom";
 const API_URL = "http://localhost:4000";
 
 // Layout general con el menú
-function Layout({ children }) {
+function Layout({ children, auth, onLogout }) {
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "#242424",
-        color: "#f5f5f5",
-      }}
-    >
+    <div style={{ minHeight: "100vh", backgroundColor: "#242424", color: "#f5f5f5" }}>
       <header
         style={{
           backgroundColor: "#111827",
@@ -23,12 +17,33 @@ function Layout({ children }) {
         }}
       >
         <h1 style={{ fontWeight: 600, fontSize: "24px" }}>MiGasto</h1>
-        <nav style={{ display: "flex", gap: "12px", fontSize: "14px" }}>
+        <nav style={{ display: "flex", gap: "12px", fontSize: "14px", alignItems: "center" }}>
           <Link to="/dashboard">Dashboard</Link>
           <Link to="/movimientos">Movimientos</Link>
           <Link to="/metas">Metas</Link>
           <Link to="/analisis-ia">Análisis IA</Link>
           <Link to="/login">Login</Link>
+          {auth && (
+            <>
+              <span style={{ fontSize: "12px", opacity: 0.8 }}>
+                Hola, {auth.usuario.nombre}
+              </span>
+              <button
+                onClick={onLogout}
+                style={{
+                  padding: "4px 8px",
+                  backgroundColor: "#ef4444",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                }}
+              >
+                Cerrar sesión
+              </button>
+            </>
+          )}
         </nav>
       </header>
       <main
@@ -44,11 +59,104 @@ function Layout({ children }) {
   );
 }
 
+
 // ------------------- Páginas simples por ahora -------------------
 
-function LoginPage() {
-  return <h2 style={{ fontSize: "20px", fontWeight: 600 }}>Login</h2>;
+function LoginPage({ onLoginSuccess }) {
+  const [form, setForm] = useState({ email: "", password: "" });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Error al iniciar sesión");
+      }
+
+      const data = await res.json();
+      onLoginSuccess?.(data);
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "No se pudo iniciar sesión");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ maxWidth: "360px" }}>
+      <h2 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "16px" }}>
+        Login
+      </h2>
+      <p style={{ fontSize: "13px", opacity: 0.8, marginBottom: "8px" }}>
+        Puedes usar el usuario demo: <br />
+        <strong>demo@migasto.cl</strong> / <strong>demo123</strong>
+      </p>
+
+      {error && (
+        <p style={{ color: "#f87171", fontSize: "14px", marginBottom: "8px" }}>
+          {error}
+        </p>
+      )}
+
+      <form
+        onSubmit={handleSubmit}
+        style={{ display: "grid", gap: "8px", marginTop: "8px" }}
+      >
+        <input
+          type="email"
+          name="email"
+          placeholder="Correo"
+          value={form.email}
+          onChange={handleChange}
+          style={{ padding: "8px 10px" }}
+        />
+        <input
+          type="password"
+          name="password"
+          placeholder="Contraseña"
+          value={form.password}
+          onChange={handleChange}
+          style={{ padding: "8px 10px" }}
+        />
+
+        <button
+          type="submit"
+          disabled={loading}
+          style={{
+            marginTop: "4px",
+            padding: "8px 12px",
+            backgroundColor: "#3b82f6",
+            color: "#fff",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            fontWeight: 500,
+          }}
+        >
+          {loading ? "Ingresando..." : "Iniciar sesión"}
+        </button>
+      </form>
+    </div>
+  );
 }
+
 
 function DashboardPage() {
   const [movimientos, setMovimientos] = useState([]);
@@ -64,26 +172,56 @@ function DashboardPage() {
     setLoading(true);
     setError("");
 
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setMovimientos([]);
+      setMetas([]);
+      setError("Debes iniciar sesión para ver el dashboard");
+      return;
+    }
+
     const [resMovs, resMetas, resDivisas] = await Promise.all([
-      fetch(`${API_URL}/movimientos`),
-      fetch(`${API_URL}/metas`),
+      fetch(`${API_URL}/movimientos`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }),
+      fetch(`${API_URL}/metas`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }),
+      // divisas puede quedar pública, sin token
       fetch(`${API_URL}/divisas`),
     ]);
 
+    // revisar errores de auth / server
+    if (!resMovs.ok || !resMetas.ok) {
+      if (resMovs.status === 401 || resMetas.status === 401) {
+        throw new Error(
+          "Sesión expirada o no autorizada. Inicia sesión de nuevo."
+        );
+      }
+      throw new Error("Error al cargar los datos del dashboard");
+    }
+
     const dataMovs = await resMovs.json();
     const dataMetas = await resMetas.json();
-    const dataDivisas = await resDivisas.json();
+    const dataDivisas = resDivisas.ok ? await resDivisas.json() : null;
 
     setMovimientos(dataMovs);
     setMetas(dataMetas);
     setDivisas(dataDivisas);
   } catch (err) {
     console.error(err);
-    setError("Error al cargar los datos del dashboard");
+    setError(err.message || "Error al cargar los datos del dashboard");
+    setMovimientos([]);
+    setMetas([]);
   } finally {
     setLoading(false);
   }
 };
+
 
 
   useEffect(() => {
@@ -439,19 +577,42 @@ function MetasPage() {
   });
 
   const fetchMetas = async () => {
-    try {
-      setLoading(true);
-      setError("");
-      const res = await fetch(`${API_URL}/metas`);
-      const data = await res.json();
-      setMetas(data);
-    } catch (err) {
-      console.error(err);
-      setError("Error al cargar las metas");
-    } finally {
-      setLoading(false);
+  try {
+    setLoading(true);
+    setError("");
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setMetas([]);
+      setError("Debes iniciar sesión para ver tus metas");
+      return;
     }
-  };
+
+    const res = await fetch(`${API_URL}/metas`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        setError("Sesión expirada o no autorizada. Inicia sesión de nuevo.");
+      } else {
+        setError("Error al cargar las metas");
+      }
+      return;
+    }
+
+    const data = await res.json();
+    setMetas(data);
+  } catch (err) {
+    console.error(err);
+    setError("Error al cargar las metas");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   useEffect(() => {
     fetchMetas();
@@ -461,19 +622,35 @@ function MetasPage() {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
-
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
     try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("Debes iniciar sesión para crear metas");
+        return;
+      }
+
       const res = await fetch(`${API_URL}/metas`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify(form),
       });
 
-      if (!res.ok) throw new Error("Error al crear meta");
+      if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error(
+            "Sesión expirada o no autorizada. Inicia sesión de nuevo."
+          );
+        }
+        throw new Error("Error al crear meta");
+      }
 
       const nueva = await res.json();
       setMetas((prev) => [...prev, nueva]);
@@ -487,43 +664,79 @@ function MetasPage() {
       });
     } catch (err) {
       console.error(err);
-      setError("No se pudo crear la meta");
+      setError(err.message || "No se pudo crear la meta");
     }
   };
 
   const handleDelete = async (id) => {
     try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("Debes iniciar sesión para eliminar metas");
+        return;
+      }
+
       const res = await fetch(`${API_URL}/metas/${id}`, {
         method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
+
       if (!res.ok && res.status !== 204) {
+        if (res.status === 401) {
+          throw new Error(
+            "Sesión expirada o no autorizada. Inicia sesión de nuevo."
+          );
+        }
         throw new Error("Error al eliminar meta");
       }
+
       setMetas((prev) => prev.filter((m) => m.id !== id));
     } catch (err) {
       console.error(err);
-      setError("No se pudo eliminar la meta");
+      setError(err.message || "No se pudo eliminar la meta");
     }
   };
 
-  // actualizar solo el montoActual (sumar ahorro)
+    // actualizar solo el montoActual 
+
   const handleUpdateMonto = async (id, nuevoMontoActual) => {
     try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("Debes iniciar sesión para actualizar tus metas");
+        return;
+      }
+
       const res = await fetch(`${API_URL}/metas/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ montoActual: nuevoMontoActual }),
       });
 
-      if (!res.ok) throw new Error("Error al actualizar meta");
+      if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error(
+            "Sesión expirada o no autorizada. Inicia sesión de nuevo."
+          );
+        }
+        throw new Error("Error al actualizar meta");
+      }
 
       const metaActualizada = await res.json();
-      setMetas((prev) => prev.map((m) => (m.id === id ? metaActualizada : m)));
+      setMetas((prev) =>
+        prev.map((m) => (m.id === id ? metaActualizada : m))
+      );
     } catch (err) {
       console.error(err);
-      setError("No se pudo actualizar la meta");
+      setError(err.message || "No se pudo actualizar la meta");
     }
   };
+
 
   return (
     <div>
@@ -802,19 +1015,32 @@ function MovimientosPage() {
 
   // Traer movimientos al cargar la página
   const fetchMovimientos = async () => {
-    try {
-      setLoading(true);
-      setError("");
-      const res = await fetch(`${API_URL}/movimientos`);
-      const data = await res.json();
-      setMovimientos(data);
-    } catch (err) {
-      console.error(err);
-      setError("Error al cargar movimientos");
-    } finally {
-      setLoading(false);
+  try {
+    setLoading(true);
+    setError("");
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setError("Debes iniciar sesión para ver tus movimientos");
+      setMovimientos([]);
+      return;
     }
-  };
+
+    const res = await fetch(`${API_URL}/movimientos`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await res.json();
+    setMovimientos(data);
+  } catch (err) {
+    console.error(err);
+    setError("Error al cargar movimientos");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   useEffect(() => {
     fetchMovimientos();
@@ -827,20 +1053,33 @@ function MovimientosPage() {
   };
 
   // Enviar nuevo movimiento al backend
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
     try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("Debes iniciar sesión para crear movimientos");
+        return;
+      }
+
       const res = await fetch(`${API_URL}/movimientos`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(form),
       });
 
       if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error(
+            "Sesión expirada o no autorizada. Inicia sesión de nuevo."
+          );
+        }
         throw new Error("Error al crear movimiento");
       }
 
@@ -857,23 +1096,40 @@ function MovimientosPage() {
       });
     } catch (err) {
       console.error(err);
-      setError("No se pudo guardar el movimiento");
+      setError(err.message || "No se pudo guardar el movimiento");
     }
   };
 
   // Borrar movimiento
+
   const handleDelete = async (id) => {
     try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("Debes iniciar sesión para eliminar movimientos");
+        return;
+      }
+
       const res = await fetch(`${API_URL}/movimientos/${id}`, {
         method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
+
       if (!res.ok && res.status !== 204) {
-        throw new Error("Error al eliminar");
+        if (res.status === 401) {
+          throw new Error(
+            "Sesión expirada o no autorizada. Inicia sesión de nuevo."
+          );
+        }
+        throw new Error("Error al eliminar movimiento");
       }
+
       setMovimientos((prev) => prev.filter((m) => m.id !== id));
     } catch (err) {
       console.error(err);
-      setError("No se pudo eliminar el movimiento");
+      setError(err.message || "No se pudo eliminar el movimiento");
     }
   };
 
@@ -1030,15 +1286,35 @@ function MovimientosPage() {
 // ------------------- App principal -------------------
 
 export default function App() {
+  const [auth, setAuth] = useState(() => {
+    const token = localStorage.getItem("token");
+    const usuario = localStorage.getItem("usuario");
+    if (token && usuario) {
+      return { token, usuario: JSON.parse(usuario) };
+    }
+    return null;
+  });
+
+  const handleLoginSuccess = (data) => {
+    // data viene del backend: { token, usuario }
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("usuario", JSON.stringify(data.usuario));
+    setAuth({ token: data.token, usuario: data.usuario });
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("usuario");
+    setAuth(null);
+  };
   return (
-    <Layout>
+    <Layout auth={auth} onLogout={handleLogout}>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/movimientos" element={<MovimientosPage />} />
         <Route path="/metas" element={<MetasPage />} />
         <Route path="/analisis-ia" element={<AnalisisIAPage />} />
-        {/* Ruta por defecto */}
         <Route path="*" element={<DashboardPage />} />
       </Routes>
     </Layout>
