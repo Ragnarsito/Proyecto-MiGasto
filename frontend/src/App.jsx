@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Routes, Route, Link } from "react-router-dom";
-import { useState, useEffect } from "react";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const API_URL = "http://localhost:4000";
