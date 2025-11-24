@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Routes, Route, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
 
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const API_URL = "http://localhost:4000";
 
 // Layout general con el menú
@@ -67,6 +69,29 @@ function LoginPage({ onLoginSuccess }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const handleGoogleResponse = async (response) => {
+  const id_token = response.credential;
+
+  try {
+    const res = await fetch(`${API_URL}/auth/google`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id_token }),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || "Error al iniciar sesión con Google");
+    }
+
+    const data = await res.json();
+    onLoginSuccess?.(data); // mismo flujo que el login normal
+  } catch (err) {
+    console.error(err);
+    setError(err.message || "No se pudo iniciar sesión con Google");
+  }
+};
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -99,63 +124,103 @@ function LoginPage({ onLoginSuccess }) {
     }
   };
 
-  return (
-    <div style={{ maxWidth: "360px" }}>
-      <h2 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "16px" }}>
-        Login
-      </h2>
-      <p style={{ fontSize: "13px", opacity: 0.8, marginBottom: "8px" }}>
-        Puedes usar el usuario demo: <br />
-        <strong>demo@migasto.cl</strong> / <strong>demo123</strong>
-      </p>
+  useEffect(() => {
+  if (!window.google || !GOOGLE_CLIENT_ID) return;
 
-      {error && (
-        <p style={{ color: "#f87171", fontSize: "14px", marginBottom: "8px" }}>
-          {error}
-        </p>
-      )}
+  window.google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: handleGoogleResponse,
+  });
 
-      <form
-        onSubmit={handleSubmit}
-        style={{ display: "grid", gap: "8px", marginTop: "8px" }}
-      >
-        <input
-          type="email"
-          name="email"
-          placeholder="Correo"
-          value={form.email}
-          onChange={handleChange}
-          style={{ padding: "8px 10px" }}
-        />
-        <input
-          type="password"
-          name="password"
-          placeholder="Contraseña"
-          value={form.password}
-          onChange={handleChange}
-          style={{ padding: "8px 10px" }}
-        />
-
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            marginTop: "4px",
-            padding: "8px 12px",
-            backgroundColor: "#3b82f6",
-            color: "#fff",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer",
-            fontWeight: 500,
-          }}
-        >
-          {loading ? "Ingresando..." : "Iniciar sesión"}
-        </button>
-      </form>
-    </div>
+  window.google.accounts.id.renderButton(
+    document.getElementById("googleSignInDiv"),
+    {
+      theme: "outline",
+      size: "large",
+      type: "standard",
+      text: "continue_with",
+      shape: "rectangular",
+    }
   );
-}
+}, []);
+
+return (
+  <div style={{ maxWidth: "360px" }}>
+    <h2 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "16px" }}>
+      Login
+    </h2>
+
+    <p style={{ fontSize: "13px", opacity: 0.8, marginBottom: "8px" }}>
+      Puedes usar el usuario demo: <br />
+      <strong>demo@migasto.cl</strong> / <strong>demo123</strong>
+    </p>
+
+    {error && (
+      <p style={{ color: "#f87171", fontSize: "14px", marginBottom: "8px" }}>
+        {error}
+      </p>
+    )}
+
+    <form
+      onSubmit={handleSubmit}
+      style={{ display: "grid", gap: "8px", marginTop: "8px" }}
+    >
+      <input
+        type="email"
+        name="email"
+        placeholder="Correo"
+        value={form.email}
+        onChange={handleChange}
+        style={{ padding: "8px 10px" }}
+      />
+
+      <input
+        type="password"
+        name="password"
+        placeholder="Contraseña"
+        value={form.password}
+        onChange={handleChange}
+        style={{ padding: "8px 10px" }}
+      />
+
+      <button
+        type="submit"
+        disabled={loading}
+        style={{
+          marginTop: "4px",
+          padding: "8px 12px",
+          backgroundColor: "#3b82f6",
+          color: "#fff",
+          border: "none",
+          borderRadius: "4px",
+          cursor: "pointer",
+          fontWeight: 500,
+        }}
+      >
+        {loading ? "Ingresando..." : "Iniciar sesión"}
+      </button>
+    </form>
+
+    {/* ------ Separador visual "o" ------ */}
+    <div
+      style={{
+        margin: "12px 0",
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        fontSize: "12px",
+        opacity: 0.7,
+      }}
+    >
+      <hr style={{ flex: 1, borderColor: "#4b5563" }} />
+      <span>o</span>
+      <hr style={{ flex: 1, borderColor: "#4b5563" }} />
+    </div>
+
+    {/* ------ Google Sign-In Button ------ */}
+    <div id="googleSignInDiv"></div>
+  </div>
+);
 
 
 function DashboardPage() {
