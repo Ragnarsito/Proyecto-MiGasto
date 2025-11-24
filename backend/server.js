@@ -99,6 +99,63 @@ app.post("/auth/login", async (req, res) => {
   });
 });
 
+// POST /auth/google -> login con cuenta de Google
+app.post("/auth/google", async (req, res) => {
+  const { id_token } = req.body;
+
+  if (!id_token) {
+    return res.status(400).json({ error: "id_token requerido" });
+  }
+
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: id_token,
+      audience: GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const email = payload.email;
+    const nombre =
+      payload.name || payload.given_name || "Usuario Google";
+    const googleId = payload.sub; // id único de Google
+
+    if (!email) {
+      return res.status(400).json({ error: "Google no entregó un email" });
+    }
+
+    // Buscar usuario por email, o crearlo si no existe
+    let usuario = usuarios.find((u) => u.email === email);
+
+    if (!usuario) {
+      usuario = {
+        id: nextUserId++,
+        nombre,
+        email,
+        passwordHash: null, // viene de Google, no tiene clave local
+        googleId,
+      };
+      usuarios.push(usuario);
+    }
+
+    const jwtPayload = {
+      id: usuario.id,
+      email: usuario.email,
+      nombre: usuario.nombre,
+    };
+
+    const token = jwt.sign(jwtPayload, JWT_SECRET, { expiresIn: "2h" });
+
+    res.json({
+      token,
+      usuario: jwtPayload,
+    });
+  } catch (err) {
+    console.error("Error verificando token de Google:", err);
+    res
+      .status(401)
+      .json({ error: "Token de Google inválido o no verificable" });
+  }
+});
 
 // Middleware 
 function authMiddleware(req, res, next) {
