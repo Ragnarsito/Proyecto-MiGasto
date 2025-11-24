@@ -1092,14 +1092,11 @@ function MovimientosPage() {
       }
 
       const res = await fetch(`${API_URL}/movimientos`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       const data = await res.json();
       setMovimientos(data);
-
     } catch (err) {
       console.error(err);
       setError("Error al cargar movimientos");
@@ -1112,13 +1109,13 @@ function MovimientosPage() {
     fetchMovimientos();
   }, []);
 
-  // Manejo de inputs del formulario
+  // Manejo de inputs
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Crear nuevo movimiento
+  // Crear movimiento
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -1140,16 +1137,15 @@ function MovimientosPage() {
       });
 
       if (!res.ok) {
-        if (res.status === 401) {
-          throw new Error("Sesión expirada o no autorizada. Inicia sesión de nuevo.");
-        }
+        if (res.status === 401)
+          throw new Error("Sesión expirada. Inicia sesión.");
         throw new Error("Error al crear movimiento");
       }
 
       const nuevo = await res.json();
       setMovimientos((prev) => [...prev, nuevo]);
 
-      // reset form
+      // limpiar formulario
       setForm({
         tipo: "gasto",
         categoria: "",
@@ -1157,14 +1153,13 @@ function MovimientosPage() {
         fecha: "",
         descripcion: "",
       });
-
     } catch (err) {
       console.error(err);
       setError(err.message || "No se pudo guardar el movimiento");
     }
   };
 
-  // Borrar movimiento
+  // Eliminar movimiento
   const handleDelete = async (id) => {
     try {
       const token = localStorage.getItem("token");
@@ -1175,27 +1170,21 @@ function MovimientosPage() {
 
       const res = await fetch(`${API_URL}/movimientos/${id}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (!res.ok && res.status !== 204) {
-        if (res.status === 401) {
-          throw new Error("Sesión expirada o no autorizada. Inicia sesión de nuevo.");
-        }
         throw new Error("Error al eliminar movimiento");
       }
 
       setMovimientos((prev) => prev.filter((m) => m.id !== id));
-
     } catch (err) {
       console.error(err);
-      setError(err.message || "No se pudo eliminar el movimiento");
+      setError(err.message || "No se pudo eliminar movimiento");
     }
   };
 
-  // --- RETURN DE LA PÁGINA ---
+  // -------------------- RETURN --------------------
   return (
     <div>
       <h2 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "16px" }}>
@@ -1203,9 +1192,7 @@ function MovimientosPage() {
       </h2>
 
       {error && (
-        <p style={{ color: "#f87171", fontSize: "14px", marginBottom: "8px" }}>
-          {error}
-        </p>
+        <p style={{ color: "#f87171", marginBottom: "8px" }}>{error}</p>
       )}
 
       {/* Formulario */}
@@ -1231,7 +1218,7 @@ function MovimientosPage() {
 
           <input
             name="categoria"
-            placeholder="Categoría (ej: Comida)"
+            placeholder="Categoría"
             value={form.categoria}
             onChange={handleChange}
             style={{ flex: 2, padding: "6px 8px" }}
@@ -1247,7 +1234,6 @@ function MovimientosPage() {
             onChange={handleChange}
             style={{ flex: 1, padding: "6px 8px" }}
           />
-
           <input
             type="date"
             name="fecha"
@@ -1263,20 +1249,17 @@ function MovimientosPage() {
           value={form.descripcion}
           onChange={handleChange}
           rows={2}
-          style={{ padding: "6px 8px", resize: "vertical" }}
+          style={{ padding: "6px 8px" }}
         />
 
         <button
           type="submit"
           style={{
-            marginTop: "4px",
-            padding: "8px 12px",
             backgroundColor: "#3b82f6",
-            color: "#fff",
-            border: "none",
+            padding: "8px 12px",
+            color: "white",
             borderRadius: "4px",
-            cursor: "pointer",
-            fontWeight: 500,
+            border: "none",
             width: "fit-content",
           }}
         >
@@ -1284,32 +1267,20 @@ function MovimientosPage() {
         </button>
       </form>
 
-      {/* Lista / tabla */}
+      {/* Lista */}
       {loading ? (
         <p>Cargando movimientos...</p>
       ) : movimientos.length === 0 ? (
-        <p>No tienes movimientos aún.</p>
+        <p>No tienes movimientos aún</p>
       ) : (
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            fontSize: "14px",
-          }}
-        >
+        <table style={{ width: "100%", fontSize: "14px" }}>
           <thead>
             <tr>
-              <th style={{ textAlign: "left", paddingBottom: "8px" }}>Fecha</th>
-              <th style={{ textAlign: "left", paddingBottom: "8px" }}>Tipo</th>
-              <th style={{ textAlign: "left", paddingBottom: "8px" }}>
-                Categoría
-              </th>
-              <th style={{ textAlign: "right", paddingBottom: "8px" }}>
-                Monto
-              </th>
-              <th style={{ textAlign: "left", paddingBottom: "8px" }}>
-                Descripción
-              </th>
+              <th>Fecha</th>
+              <th>Tipo</th>
+              <th>Categoría</th>
+              <th>Monto</th>
+              <th>Descripción</th>
               <th></th>
             </tr>
           </thead>
@@ -1317,41 +1288,34 @@ function MovimientosPage() {
           <tbody>
             {movimientos.map((m) => (
               <tr key={m.id}>
-                <td style={{ padding: "4px 0" }}>{m.fecha}</td>
-                <td style={{ padding: "4px 0" }}>{m.tipo}</td>
-                <td style={{ padding: "4px 0" }}>{m.categoria}</td>
-                <td style={{ padding: "4px 0", textAlign: "right" }}>
-                  ${m.monto}
-                </td>
-                <td style={{ padding: "4px 0" }}>{m.descripcion}</td>
-
-                <td style={{ padding: "4px 0" }}>
+                <td>{m.fecha}</td>
+                <td>{m.tipo}</td>
+                <td>{m.categoria}</td>
+                <td>${m.monto}</td>
+                <td>{m.descripcion}</td>
+                <td>
                   <button
                     onClick={() => handleDelete(m.id)}
                     style={{
-                      padding: "4px 8px",
                       backgroundColor: "#ef4444",
-                      color: "#fff",
+                      color: "white",
+                      padding: "4px 8px",
                       border: "none",
                       borderRadius: "4px",
-                      cursor: "pointer",
                       fontSize: "12px",
                     }}
                   >
                     Eliminar
                   </button>
                 </td>
-
               </tr>
             ))}
           </tbody>
-
         </table>
       )}
     </div>
   );
 }
-
 // ------------------- App principal -------------------
 
 export default function App() {
