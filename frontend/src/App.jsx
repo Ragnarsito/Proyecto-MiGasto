@@ -1197,7 +1197,7 @@ function MovimientosPage() {
       setError(err.message || "No se pudo eliminar el movimiento");
     }
   };
-
+}
   return (
     <div>
       <h2 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "16px" }}>
