@@ -302,6 +302,7 @@ function DashboardPage() {
 
     {/* Cards de resumen */}
     <div
+      className = "cards-grid"
       style={{
         display: "grid",
         gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
