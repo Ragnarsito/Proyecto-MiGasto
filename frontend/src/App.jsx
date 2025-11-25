@@ -2,11 +2,37 @@ import { useEffect, useState } from "react";
 import { Routes, Route, Link } from "react-router-dom";
 import es from "./locales/es.json";
 import en from "./locales/en.json";
+import { t } from "./i18n";
 
 const TRANSLATIONS = { es, en };
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const API_URL = "http://localhost:4000";
+
+function createT(lang) {
+  const dict = TRANSLATIONS[lang] || TRANSLATIONS.es;
+
+  return (key, vars = {}) => {
+    const parts = key.split(".");
+    let value = dict;
+
+    for (const p of parts) {
+      if (value && typeof value === "object" && p in value) {
+        value = value[p];
+      } else {
+        // si no existe la clave, devolvemos la clave para poder verla
+        return key;
+      }
+    }
+
+    if (typeof value !== "string") return key;
+
+    // reemplazo de {{name}} etc.
+    return value.replace(/\{\{(\w+)\}\}/g, (_, v) =>
+      vars[v] !== undefined ? String(vars[v]) : ""
+    );
+  };
+}
 
 // Layout general con el menú
 function Layout({ children, auth, onLogout, lang, setLang, t }) {
@@ -47,7 +73,7 @@ function Layout({ children, auth, onLogout, lang, setLang, t }) {
             }}
           >
             <h1 style={{ fontWeight: 600, fontSize: "22px" }}>
-              {t ? t("app.title") : "MiGasto"}
+              {t("app.title")}
             </h1>
 
             {auth && (
@@ -64,7 +90,7 @@ function Layout({ children, auth, onLogout, lang, setLang, t }) {
                   whiteSpace: "nowrap",
                 }}
               >
-                {t ? t("header.logout") : "Cerrar sesión"}
+                {t("header.logout")}
               </button>
             )}
           </div>
@@ -79,12 +105,10 @@ function Layout({ children, auth, onLogout, lang, setLang, t }) {
               fontSize: "12px",
             }}
           >
-            <span style={{ opacity: 0.7 }}>
-              {t ? t("header.language") : "Idioma"}
-            </span>
+            <span style={{ opacity: 0.7 }}>{t("header.language")}</span>
             <button
               type="button"
-              onClick={() => setLang && setLang("es")}
+              onClick={() => setLang("es")}
               style={{
                 padding: "2px 8px",
                 borderRadius: "999px",
@@ -100,7 +124,7 @@ function Layout({ children, auth, onLogout, lang, setLang, t }) {
             </button>
             <button
               type="button"
-              onClick={() => setLang && setLang("en")}
+              onClick={() => setLang("en")}
               style={{
                 padding: "2px 8px",
                 borderRadius: "999px",
@@ -126,11 +150,11 @@ function Layout({ children, auth, onLogout, lang, setLang, t }) {
               alignItems: "center",
             }}
           >
-            <Link to="/dashboard">Dashboard</Link>
-            <Link to="/movimientos">Movimientos</Link>
-            <Link to="/metas">Metas</Link>
-            <Link to="/analisis-ia">Análisis IA</Link>
-            <Link to="/login">Login</Link>
+            <Link to="/dashboard">{t("nav.dashboard")}</Link>
+            <Link to="/movimientos">{t("nav.movements")}</Link>
+            <Link to="/metas">{t("nav.goals")}</Link>
+            <Link to="/analisis-ia">{t("nav.aiAnalysis")}</Link>
+            <Link to="/login">{t("nav.login")}</Link>
 
             {auth && (
               <span
@@ -139,11 +163,7 @@ function Layout({ children, auth, onLogout, lang, setLang, t }) {
                   opacity: 0.8,
                 }}
               >
-                {t ? (
-                  t("header.greeting", { name: auth.usuario.nombre })
-                ) : (
-                  <>Hola, {auth.usuario.nombre}</>
-                )}
+                {t("header.helloUser", { name: auth.usuario.nombre })}
               </span>
             )}
           </nav>
@@ -160,6 +180,8 @@ function Layout({ children, auth, onLogout, lang, setLang, t }) {
     </div>
   );
 }
+
+
 
 // -------------------------------------------------------
 // ------------------- Páginas simples por ahora -------------------
@@ -342,31 +364,25 @@ function DashboardPage({ t }) {
       if (!token) {
         setMovimientos([]);
         setMetas([]);
-        setError("Debes iniciar sesión para ver el dashboard");
+        // mensaje de error traducido
+        setError(t("dashboard.error"));
         return;
       }
 
       const [resMovs, resMetas, resDivisas] = await Promise.all([
         fetch(`${API_URL}/movimientos`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         }),
         fetch(`${API_URL}/metas`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         }),
         // divisas puede quedar pública, sin token
         fetch(`${API_URL}/divisas`),
       ]);
 
-      // revisar errores de auth / server
       if (!resMovs.ok || !resMetas.ok) {
         if (resMovs.status === 401 || resMetas.status === 401) {
-          throw new Error(
-            "Sesión expirada o no autorizada. Inicia sesión de nuevo."
-          );
+          throw new Error(t("dashboard.error"));
         }
         throw new Error("Error al cargar los datos del dashboard");
       }
@@ -380,7 +396,7 @@ function DashboardPage({ t }) {
       setDivisas(dataDivisas);
     } catch (err) {
       console.error(err);
-      setError(err.message || "Error al cargar los datos del dashboard");
+      setError(err.message || t("dashboard.error"));
       setMovimientos([]);
       setMetas([]);
     } finally {
@@ -422,8 +438,6 @@ function DashboardPage({ t }) {
     (m) => m.montoActual >= m.montoObjetivo && m.montoObjetivo > 0
   ).length;
 
-  const metasEnProgreso = totalMetas - metasCompletadas;
-
   const ahorroTotalMetas = metas.reduce(
     (acc, m) => acc + Number(m.montoActual || 0),
     0
@@ -460,7 +474,6 @@ function DashboardPage({ t }) {
 
       {error && (
         <p style={{ color: "#f87171", fontSize: "14px", marginBottom: "8px" }}>
-          {t("dashboard.error")}
           {error}
         </p>
       )}
@@ -490,6 +503,7 @@ function DashboardPage({ t }) {
             ${totalIngresos.toLocaleString("es-CL")}
           </p>
         </div>
+
         <div
           style={{
             padding: "12px 14px",
@@ -528,7 +542,9 @@ function DashboardPage({ t }) {
             borderRadius: "8px",
           }}
         >
-          <p style={{ fontSize: "12px", opacity: 0.8 }}>Metas creadas</p>
+          <p style={{ fontSize: "12px", opacity: 0.8 }}>
+            {t("dashboard.goalsCreated")}
+          </p>
           <p style={{ fontSize: "20px", fontWeight: 600 }}>{totalMetas}</p>
         </div>
 
@@ -539,7 +555,9 @@ function DashboardPage({ t }) {
             borderRadius: "8px",
           }}
         >
-          <p style={{ fontSize: "12px", opacity: 0.8 }}>Metas completadas</p>
+          <p style={{ fontSize: "12px", opacity: 0.8 }}>
+            {t("dashboard.goalsCompleted")}
+          </p>
           <p style={{ fontSize: "20px", fontWeight: 600 }}>
             {metasCompletadas} / {totalMetas}
           </p>
@@ -553,7 +571,7 @@ function DashboardPage({ t }) {
           }}
         >
           <p style={{ fontSize: "12px", opacity: 0.8 }}>
-            Avance global de metas
+            {t("dashboard.globalProgress")}
           </p>
           <p style={{ fontSize: "20px", fontWeight: 600 }}>
             {porcentajeGlobalMetas}%
@@ -572,15 +590,15 @@ function DashboardPage({ t }) {
           }}
         >
           <p style={{ fontSize: "12px", opacity: 0.8 }}>
-            Tipo de cambio actual
+            {t("dashboard.exchangeTitle")}
           </p>
           <p style={{ fontSize: "14px", marginTop: "6px" }}>
-            <strong>1 USD</strong> = {divisas.usd_clp.toLocaleString("es-CL")}{" "}
-            CLP
+            <strong>1 USD</strong> ={" "}
+            {divisas.usd_clp.toLocaleString("es-CL")} CLP
           </p>
           <p style={{ fontSize: "14px", marginTop: "4px" }}>
-            <strong>1 EUR</strong> = {divisas.eur_clp.toLocaleString("es-CL")}{" "}
-            CLP
+            <strong>1 EUR</strong> ={" "}
+            {divisas.eur_clp.toLocaleString("es-CL")} CLP
           </p>
         </div>
       )}
@@ -598,16 +616,16 @@ function DashboardPage({ t }) {
               marginTop: "8px",
             }}
           >
-            Gasto por categoría
+            {t("dashboard.spendByCategory")}
           </h3>
 
           {movimientos.length === 0 ? (
             <p style={{ fontSize: "14px" }}>
-              Aún no tienes movimientos registrados.
+              {t("dashboard.noMovements")}
             </p>
           ) : categoriasOrdenadas.length === 0 ? (
             <p style={{ fontSize: "14px" }}>
-              No hay gastos registrados, solo ingresos.
+              {t("dashboard.noExpensesOnlyIncome")}
             </p>
           ) : (
             <div style={{ width: "100%", overflowX: "auto" }}>
@@ -629,7 +647,7 @@ function DashboardPage({ t }) {
                         borderBottom: "1px solid #374151",
                       }}
                     >
-                      Categoría
+                      {t("dashboard.tableCategory")}
                     </th>
                     <th
                       style={{
@@ -638,7 +656,8 @@ function DashboardPage({ t }) {
                         borderBottom: "1px solid #374151",
                       }}
                     >
-                      Total gastado
+                      {t("dashboard.tableTotalSpent")}
+
                     </th>
                   </tr>
                 </thead>
@@ -665,18 +684,13 @@ function DashboardPage({ t }) {
               marginTop: "8px",
             }}
           >
-            Metas más avanzadas
+            {t("dashboard.topGoals")}
           </h3>
 
           {metas.length === 0 ? (
-            <p style={{ fontSize: "14px" }}>
-              Aún no tienes metas creadas. Puedes crearlas en la pestaña
-              "Metas".
-            </p>
+            <p style={{ fontSize: "14px" }}>{t("dashboard.noGoals")}</p>
           ) : topMetas.length === 0 ? (
-            <p style={{ fontSize: "14px" }}>
-              Todavía no hay progreso registrado en tus metas.
-            </p>
+            <p style={{ fontSize: "14px" }}>{t("dashboard.noProgress")}</p>
           ) : (
             <div style={{ width: "100%", overflowX: "auto" }}>
               <table
@@ -696,7 +710,9 @@ function DashboardPage({ t }) {
                         borderBottom: "1px solid #374151",
                       }}
                     >
-                      Meta
+                      {t("dashboard.goals")}
+
+                  
                     </th>
                     <th
                       style={{
@@ -705,7 +721,8 @@ function DashboardPage({ t }) {
                         borderBottom: "1px solid #374151",
                       }}
                     >
-                      Progreso
+                      {t("dashboard.globalProgress")}
+                      
                     </th>
                     <th
                       style={{
@@ -714,7 +731,7 @@ function DashboardPage({ t }) {
                         borderBottom: "1px solid #374151",
                       }}
                     >
-                      Falta por ahorrar
+                      {t("dashboard.amountLeft")}
                     </th>
                   </tr>
                 </thead>
@@ -746,6 +763,7 @@ function DashboardPage({ t }) {
   );
 }
 
+
 function MetasPage({ t }) {
   const [metas, setMetas] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -766,7 +784,7 @@ function MetasPage({ t }) {
       const token = localStorage.getItem("token");
       if (!token) {
         setMetas([]);
-        setError("Debes iniciar sesión para ver tus metas");
+        setError("!");
         return;
       }
 
@@ -811,7 +829,7 @@ function MetasPage({ t }) {
     try {
       const token = localStorage.getItem("token");
       if (!token) {
-        setError("Debes iniciar sesión para crear metas");
+        setError("!");
         return;
       }
 
@@ -830,7 +848,7 @@ function MetasPage({ t }) {
             "Sesión expirada o no autorizada. Inicia sesión de nuevo."
           );
         }
-        throw new Error("Error al crear meta");
+        throw new Error("!");
       }
 
       const nueva = await res.json();
@@ -853,7 +871,7 @@ function MetasPage({ t }) {
     try {
       const token = localStorage.getItem("token");
       if (!token) {
-        setError("Debes iniciar sesión para eliminar metas");
+        setError("!");
         return;
       }
 
@@ -886,7 +904,7 @@ function MetasPage({ t }) {
     try {
       const token = localStorage.getItem("token");
       if (!token) {
-        setError("Debes iniciar sesión para actualizar tus metas");
+        setError("!");
         return;
       }
 
@@ -1055,7 +1073,7 @@ function MetasPage({ t }) {
                       fontSize: "11px",
                     }}
                   >
-                    Eliminar
+                    {t("metas.cardDelete")}
                   </button>
                 </div>
 
@@ -1066,7 +1084,7 @@ function MetasPage({ t }) {
                     marginBottom: "4px",
                   }}
                 >
-                  Objetivo: ${m.montoObjetivo.toLocaleString("es-CL")}
+                  {t("metas.cardTargetLabel")}: ${m.montoObjetivo.toLocaleString("es-CL")}
                 </p>
                 <p
                   style={{
@@ -1075,7 +1093,7 @@ function MetasPage({ t }) {
                     marginBottom: "4px",
                   }}
                 >
-                  Ahorrado: ${m.montoActual.toLocaleString("es-CL")} ({progreso}
+                  {t("metas.cardSavedLabel")}: ${m.montoActual.toLocaleString("es-CL")} ({progreso}
                   %)
                 </p>
                 {m.fechaLimite && (
@@ -1086,7 +1104,7 @@ function MetasPage({ t }) {
                       marginBottom: "4px",
                     }}
                   >
-                    Fecha límite: {m.fechaLimite}
+                    {t("metas.cardDeadlineLabel")}: {m.fechaLimite}
                   </p>
                 )}
                 {m.descripcion && (
@@ -1302,7 +1320,7 @@ function MovimientosPage({ t }) {
 
       const token = localStorage.getItem("token");
       if (!token) {
-        setError("Debes iniciar sesión para ver tus movimientos");
+        setError(t("movimientos.loginRequired"));
         setMovimientos([]);
         return;
       }
@@ -1311,11 +1329,16 @@ function MovimientosPage({ t }) {
         headers: { Authorization: `Bearer ${token}` },
       });
 
+      if (!res.ok) {
+        setError(t("movimientos.loadError"));
+        return;
+      }
+
       const data = await res.json();
       setMovimientos(data);
     } catch (err) {
       console.error(err);
-      setError("Error al cargar movimientos");
+      setError(t("movimientos.loadError"));
     } finally {
       setLoading(false);
     }
@@ -1323,6 +1346,7 @@ function MovimientosPage({ t }) {
 
   useEffect(() => {
     fetchMovimientos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Manejo de inputs
@@ -1339,7 +1363,7 @@ function MovimientosPage({ t }) {
     try {
       const token = localStorage.getItem("token");
       if (!token) {
-        setError("Debes iniciar sesión para crear movimientos");
+        setError(t("movimientos.loginRequired"));
         return;
       }
 
@@ -1353,9 +1377,12 @@ function MovimientosPage({ t }) {
       });
 
       if (!res.ok) {
-        if (res.status === 401)
-          throw new Error("Sesión expirada. Inicia sesión.");
-        throw new Error("Error al crear movimiento");
+        if (res.status === 401) {
+          setError(t("movimientos.loginRequired"));
+        } else {
+          setError(t("movimientos.createError"));
+        }
+        return;
       }
 
       const nuevo = await res.json();
@@ -1371,7 +1398,7 @@ function MovimientosPage({ t }) {
       });
     } catch (err) {
       console.error(err);
-      setError(err.message || "No se pudo guardar el movimiento");
+      setError(t("movimientos.genericError"));
     }
   };
 
@@ -1380,7 +1407,7 @@ function MovimientosPage({ t }) {
     try {
       const token = localStorage.getItem("token");
       if (!token) {
-        setError("Debes iniciar sesión para eliminar movimientos");
+        setError(t("movimientos.loginRequired"));
         return;
       }
 
@@ -1390,13 +1417,14 @@ function MovimientosPage({ t }) {
       });
 
       if (!res.ok && res.status !== 204) {
-        throw new Error("Error al eliminar movimiento");
+        setError(t("movimientos.deleteError"));
+        return;
       }
 
       setMovimientos((prev) => prev.filter((m) => m.id !== id));
     } catch (err) {
       console.error(err);
-      setError(err.message || "No se pudo eliminar movimiento");
+      setError(t("movimientos.deleteError"));
     }
   };
 
@@ -1409,7 +1437,7 @@ function MovimientosPage({ t }) {
 
       {error && (
         <p style={{ color: "#f87171", marginBottom: "8px" }}>
-          {t("movimientos.error")}
+          {error}
         </p>
       )}
 
@@ -1491,12 +1519,12 @@ function MovimientosPage({ t }) {
       ) : movimientos.length === 0 ? (
         <p>{t("movimientos.noMovements")}</p>
       ) : (
-        //  Contenedor scrollable para móvil
+        // Contenedor scrollable para móvil
         <div style={{ width: "100%", overflowX: "auto" }}>
           <table
             style={{
               width: "100%",
-              minWidth: "480px", // si la pantalla es más pequeña, aparece scroll horizontal
+              minWidth: "480px",
               fontSize: "14px",
               borderCollapse: "collapse",
             }}
@@ -1532,7 +1560,7 @@ function MovimientosPage({ t }) {
                         fontSize: "12px",
                       }}
                     >
-                      Eliminar
+                      {t("movimientos.delete")}
                     </button>
                   </td>
                 </tr>
@@ -1560,10 +1588,8 @@ export default function App() {
   // 🔤 Idioma
   const [lang, setLang] = useState("es");
 
-  const t = (key) => {
-    const dict = TRANSLATIONS[lang] || TRANSLATIONS.es;
-    return dict[key] || key;
-  };
+  const t = createT(lang);
+
 
   const handleLoginSuccess = (data) => {
     localStorage.setItem("token", data.token);
