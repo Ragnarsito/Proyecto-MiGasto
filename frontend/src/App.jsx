@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import { Routes, Route, Link } from "react-router-dom";
+import es from "./locales/es.json";
+import en from "./locales/en.json";
+
+const TRANSLATIONS = { es, en };
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const API_URL = "http://localhost:4000";
 
 // Layout general con el menú
-function Layout({ children, auth, onLogout }) {
+function Layout({ children, auth, onLogout, lang, setLang, t }) {
   return (
     <div
       style={{
@@ -42,7 +46,10 @@ function Layout({ children, auth, onLogout }) {
               gap: "8px",
             }}
           >
-            <h1 style={{ fontWeight: 600, fontSize: "22px" }}>MiGasto</h1>
+            <h1 style={{ fontWeight: 600, fontSize: "22px" }}>
+              {t ? t("app.title") : "MiGasto"}
+            </h1>
+
             {auth && (
               <button
                 onClick={onLogout}
@@ -57,16 +64,63 @@ function Layout({ children, auth, onLogout }) {
                   whiteSpace: "nowrap",
                 }}
               >
-                Cerrar sesión
+                {t ? t("header.logout") : "Cerrar sesión"}
               </button>
             )}
+          </div>
+
+          {/* Selector de idioma */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "12px",
+            }}
+          >
+            <span style={{ opacity: 0.7 }}>
+              {t ? t("header.language") : "Idioma"}
+            </span>
+            <button
+              type="button"
+              onClick={() => setLang && setLang("es")}
+              style={{
+                padding: "2px 8px",
+                borderRadius: "999px",
+                border:
+                  lang === "es" ? "1px solid #3b82f6" : "1px solid #4b5563",
+                backgroundColor: lang === "es" ? "#1d4ed8" : "transparent",
+                color: "#fff",
+                fontSize: "11px",
+                cursor: "pointer",
+              }}
+            >
+              ES
+            </button>
+            <button
+              type="button"
+              onClick={() => setLang && setLang("en")}
+              style={{
+                padding: "2px 8px",
+                borderRadius: "999px",
+                border:
+                  lang === "en" ? "1px solid #3b82f6" : "1px solid #4b5563",
+                backgroundColor: lang === "en" ? "#1d4ed8" : "transparent",
+                color: "#fff",
+                fontSize: "11px",
+                cursor: "pointer",
+              }}
+            >
+              EN
+            </button>
           </div>
 
           {/* Menú que hace wrap en móvil */}
           <nav
             style={{
               display: "flex",
-              flexWrap: "wrap", //
+              flexWrap: "wrap",
               gap: "8px",
               fontSize: "13px",
               alignItems: "center",
@@ -77,6 +131,7 @@ function Layout({ children, auth, onLogout }) {
             <Link to="/metas">Metas</Link>
             <Link to="/analisis-ia">Análisis IA</Link>
             <Link to="/login">Login</Link>
+
             {auth && (
               <span
                 style={{
@@ -84,7 +139,11 @@ function Layout({ children, auth, onLogout }) {
                   opacity: 0.8,
                 }}
               >
-                Hola, {auth.usuario.nombre}
+                {t ? (
+                  t("header.greeting", { name: auth.usuario.nombre })
+                ) : (
+                  <>Hola, {auth.usuario.nombre}</>
+                )}
               </span>
             )}
           </nav>
@@ -101,10 +160,11 @@ function Layout({ children, auth, onLogout }) {
     </div>
   );
 }
+
 // -------------------------------------------------------
 // ------------------- Páginas simples por ahora -------------------
 
-function LoginPage({ onLoginSuccess }) {
+function LoginPage({ onLoginSuccess, t }) {
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -187,11 +247,11 @@ function LoginPage({ onLoginSuccess }) {
   return (
     <div style={{ maxWidth: "360px" }}>
       <h2 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "16px" }}>
-        Login
+        {t("login.title")}
       </h2>
 
       <p style={{ fontSize: "13px", opacity: 0.8, marginBottom: "8px" }}>
-        Puedes usar el usuario demo: <br />
+        {t("login.demoText")} <br />
         <strong>demo@migasto.cl</strong> / <strong>demo123</strong>
       </p>
 
@@ -208,7 +268,7 @@ function LoginPage({ onLoginSuccess }) {
         <input
           type="email"
           name="email"
-          placeholder="Correo"
+          placeholder={t("login.email")}
           value={form.email}
           onChange={handleChange}
           style={{ padding: "8px 10px" }}
@@ -217,7 +277,7 @@ function LoginPage({ onLoginSuccess }) {
         <input
           type="password"
           name="password"
-          placeholder="Contraseña"
+          placeholder={t("login.password")}
           value={form.password}
           onChange={handleChange}
           style={{ padding: "8px 10px" }}
@@ -237,7 +297,7 @@ function LoginPage({ onLoginSuccess }) {
             fontWeight: 500,
           }}
         >
-          {loading ? "Ingresando..." : "Iniciar sesión"}
+          {loading ? t("login.loading") : t("login.submit")}
         </button>
       </form>
 
@@ -265,7 +325,7 @@ function LoginPage({ onLoginSuccess }) {
 // -------------------------------------------------------
 // DashboardPage COMIENZA AQUÍ (fuera de LoginPage)
 // -------------------------------------------------------
-function DashboardPage() {
+function DashboardPage({ t }) {
   const [movimientos, setMovimientos] = useState([]);
   const [metas, setMetas] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -395,11 +455,12 @@ function DashboardPage() {
   return (
     <div>
       <h2 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "16px" }}>
-        Dashboard
+        {t("dashboard.title")}
       </h2>
 
       {error && (
         <p style={{ color: "#f87171", fontSize: "14px", marginBottom: "8px" }}>
+          {t("dashboard.error")}
           {error}
         </p>
       )}
@@ -422,12 +483,13 @@ function DashboardPage() {
             borderRadius: "8px",
           }}
         >
-          <p style={{ fontSize: "12px", opacity: 0.8 }}>Ingresos totales</p>
+          <p style={{ fontSize: "12px", opacity: 0.8 }}>
+            {t("dashboard.totalIncome")}
+          </p>
           <p style={{ fontSize: "20px", fontWeight: 600 }}>
             ${totalIngresos.toLocaleString("es-CL")}
           </p>
         </div>
-
         <div
           style={{
             padding: "12px 14px",
@@ -435,7 +497,9 @@ function DashboardPage() {
             borderRadius: "8px",
           }}
         >
-          <p style={{ fontSize: "12px", opacity: 0.8 }}>Gastos totales</p>
+          <p style={{ fontSize: "12px", opacity: 0.8 }}>
+            {t("dashboard.totalExpenses")}
+          </p>
           <p style={{ fontSize: "20px", fontWeight: 600 }}>
             ${totalGastos.toLocaleString("es-CL")}
           </p>
@@ -448,7 +512,9 @@ function DashboardPage() {
             borderRadius: "8px",
           }}
         >
-          <p style={{ fontSize: "12px", opacity: 0.9 }}>Saldo del período</p>
+          <p style={{ fontSize: "12px", opacity: 0.9 }}>
+            {t("dashboard.periodBalance")}
+          </p>
           <p style={{ fontSize: "20px", fontWeight: 600 }}>
             ${saldo.toLocaleString("es-CL")}
           </p>
@@ -680,7 +746,7 @@ function DashboardPage() {
   );
 }
 
-function MetasPage() {
+function MetasPage({ t }) {
   const [metas, setMetas] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -853,11 +919,12 @@ function MetasPage() {
   return (
     <div>
       <h2 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "16px" }}>
-        Metas de ahorro
+        {t("metas.title")}
       </h2>
 
       {error && (
         <p style={{ color: "#f87171", fontSize: "14px", marginBottom: "8px" }}>
+          {t("metas.error")}
           {error}
         </p>
       )}
@@ -874,7 +941,7 @@ function MetasPage() {
       >
         <input
           name="nombre"
-          placeholder="Nombre de la meta (ej: Viaje, Fondo emergencia)"
+          placeholder={t("metas.namePlaceholder")}
           value={form.nombre}
           onChange={handleChange}
           style={{ padding: "6px 8px" }}
@@ -884,7 +951,7 @@ function MetasPage() {
           <input
             type="number"
             name="montoObjetivo"
-            placeholder="Monto objetivo"
+            placeholder={t("metas.targetAmountPlaceholder")}
             value={form.montoObjetivo}
             onChange={handleChange}
             style={{ flex: 1, padding: "6px 8px" }}
@@ -892,7 +959,7 @@ function MetasPage() {
           <input
             type="number"
             name="montoActual"
-            placeholder="Monto ahorrado (opcional)"
+            placeholder={t("metas.currentAmountPlaceholder")}
             value={form.montoActual}
             onChange={handleChange}
             style={{ flex: 1, padding: "6px 8px" }}
@@ -911,7 +978,7 @@ function MetasPage() {
 
         <textarea
           name="descripcion"
-          placeholder="Descripción (opcional)"
+          placeholder={t("metas.descriptionPlaceholder")}
           rows={2}
           value={form.descripcion}
           onChange={handleChange}
@@ -932,15 +999,15 @@ function MetasPage() {
             width: "fit-content",
           }}
         >
-          Crear meta
+          {t("metas.createGoal")}
         </button>
       </form>
 
       {/* Lista de metas */}
       {loading ? (
-        <p>Cargando metas...</p>
+        <p>{t("metas.loading")}</p>
       ) : metas.length === 0 ? (
-        <p>Todavía no tienes metas creadas.</p>
+        <p>{t("metas.noGoals")}</p>
       ) : (
         <div
           style={{
@@ -1107,7 +1174,7 @@ function PequeñoFormularioActualizacionMonto({ meta, onUpdate }) {
   );
 }
 
-function AnalisisIAPage() {
+function AnalisisIAPage({ t }) {
   const [loading, setLoading] = useState(false);
   const [analisis, setAnalisis] = useState("");
   const [error, setError] = useState("");
@@ -1120,7 +1187,7 @@ function AnalisisIAPage() {
     try {
       const token = localStorage.getItem("token");
       if (!token) {
-        setError("Debes iniciar sesión para usar el análisis con IA.");
+        setError(t("analisisIA.loginRequired"));
         setLoading(false);
         return;
       }
@@ -1135,7 +1202,7 @@ function AnalisisIAPage() {
       const data = await res.json();
 
       if (!res.ok || data.ok === false) {
-        setError(data.error || "Error al generar el análisis.");
+        setError(data.error || t("analisisIA.errorGeneratingAnalysis"));
         setLoading(false);
         return;
       }
@@ -1143,7 +1210,7 @@ function AnalisisIAPage() {
       setAnalisis(data.analisis);
     } catch (err) {
       console.error(err);
-      setError("No se pudo conectar con el servidor.");
+      setError(t("analisisIA.connectionError"));
     } finally {
       setLoading(false);
     }
@@ -1159,7 +1226,7 @@ function AnalisisIAPage() {
           textAlign: "center",
         }}
       >
-        Análisis con IA
+        {t("analisisIA.title")}
       </h2>
 
       <div style={{ textAlign: "center", marginBottom: "16px" }}>
@@ -1176,7 +1243,9 @@ function AnalisisIAPage() {
             fontWeight: 500,
           }}
         >
-          {loading ? "Generando análisis..." : "Generar análisis"}
+          {loading
+            ? t("analisisIA.generatingAnalysis")
+            : t("analisisIA.generateAnalysis")}
         </button>
       </div>
 
@@ -1213,7 +1282,7 @@ function AnalisisIAPage() {
 
 // ------------------- Página Movimientos (con API) -------------------
 
-function MovimientosPage() {
+function MovimientosPage({ t }) {
   const [movimientos, setMovimientos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -1335,11 +1404,13 @@ function MovimientosPage() {
   return (
     <div>
       <h2 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "16px" }}>
-        Movimientos
+        {t("movimientos.title")}
       </h2>
 
       {error && (
-        <p style={{ color: "#f87171", marginBottom: "8px" }}>{error}</p>
+        <p style={{ color: "#f87171", marginBottom: "8px" }}>
+          {t("movimientos.error")}
+        </p>
       )}
 
       {/* Formulario */}
@@ -1359,13 +1430,13 @@ function MovimientosPage() {
             onChange={handleChange}
             style={{ flex: 1, padding: "6px 8px" }}
           >
-            <option value="gasto">Gasto</option>
-            <option value="ingreso">Ingreso</option>
+            <option value="gasto">{t("movimientos.expense")}</option>
+            <option value="ingreso">{t("movimientos.income")}</option>
           </select>
 
           <input
             name="categoria"
-            placeholder="Categoría"
+            placeholder={t("movimientos.categoryPlaceholder")}
             value={form.categoria}
             onChange={handleChange}
             style={{ flex: 2, padding: "6px 8px" }}
@@ -1376,7 +1447,7 @@ function MovimientosPage() {
           <input
             type="number"
             name="monto"
-            placeholder="Monto"
+            placeholder={t("movimientos.amountPlaceholder")}
             value={form.monto}
             onChange={handleChange}
             style={{ flex: 1, padding: "6px 8px" }}
@@ -1392,7 +1463,7 @@ function MovimientosPage() {
 
         <textarea
           name="descripcion"
-          placeholder="Descripción (opcional)"
+          placeholder={t("movimientos.descriptionPlaceholder")}
           value={form.descripcion}
           onChange={handleChange}
           rows={2}
@@ -1410,17 +1481,17 @@ function MovimientosPage() {
             width: "fit-content",
           }}
         >
-          Agregar movimiento
+          {t("movimientos.addMovement")}
         </button>
       </form>
 
       {/* Lista */}
       {loading ? (
-        <p>Cargando movimientos...</p>
+        <p>{t("movimientos.loading")}</p>
       ) : movimientos.length === 0 ? (
-        <p>No tienes movimientos aún</p>
+        <p>{t("movimientos.noMovements")}</p>
       ) : (
-        // 🔥 Contenedor scrollable para móvil
+        //  Contenedor scrollable para móvil
         <div style={{ width: "100%", overflowX: "auto" }}>
           <table
             style={{
@@ -1432,11 +1503,11 @@ function MovimientosPage() {
           >
             <thead>
               <tr>
-                <th>Fecha</th>
-                <th>Tipo</th>
-                <th>Categoría</th>
-                <th>Monto</th>
-                <th>Descripción</th>
+                <th>{t("movimientos.date")}</th>
+                <th>{t("movimientos.type")}</th>
+                <th>{t("movimientos.category")}</th>
+                <th>{t("movimientos.amount")}</th>
+                <th>{t("movimientos.description")}</th>
                 <th></th>
               </tr>
             </thead>
@@ -1486,8 +1557,15 @@ export default function App() {
     return null;
   });
 
+  // 🔤 Idioma
+  const [lang, setLang] = useState("es");
+
+  const t = (key) => {
+    const dict = TRANSLATIONS[lang] || TRANSLATIONS.es;
+    return dict[key] || key;
+  };
+
   const handleLoginSuccess = (data) => {
-    // data viene del backend: { token, usuario }
     localStorage.setItem("token", data.token);
     localStorage.setItem("usuario", JSON.stringify(data.usuario));
     setAuth({ token: data.token, usuario: data.usuario });
@@ -1498,18 +1576,25 @@ export default function App() {
     localStorage.removeItem("usuario");
     setAuth(null);
   };
+
   return (
-    <Layout auth={auth} onLogout={handleLogout}>
+    <Layout
+      auth={auth}
+      onLogout={handleLogout}
+      lang={lang}
+      setLang={setLang}
+      t={t}
+    >
       <Routes>
         <Route
           path="/login"
-          element={<LoginPage onLoginSuccess={handleLoginSuccess} />}
+          element={<LoginPage onLoginSuccess={handleLoginSuccess} t={t} />}
         />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/movimientos" element={<MovimientosPage />} />
-        <Route path="/metas" element={<MetasPage />} />
-        <Route path="/analisis-ia" element={<AnalisisIAPage />} />
-        <Route path="*" element={<DashboardPage />} />
+        <Route path="/dashboard" element={<DashboardPage t={t} />} />
+        <Route path="/movimientos" element={<MovimientosPage t={t} />} />
+        <Route path="/metas" element={<MetasPage t={t} />} />
+        <Route path="/analisis-ia" element={<AnalisisIAPage t={t} />} />
+        <Route path="*" element={<DashboardPage t={t} />} />
       </Routes>
     </Layout>
   );
