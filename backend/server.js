@@ -5,6 +5,11 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { OAuth2Client } from "google-auth-library";
 
+// import OpenAI from "openai";
+
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+
 dotenv.config();
 
 const app = express();
@@ -12,6 +17,13 @@ const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+//const openai = new OpenAI({
+ // apiKey: process.env.OPENAI_API_KEY,
+//});
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// const movsUsuario = movimientos.filter((m) => m.userId === userId);
+// const metasUsuario = metas.filter((m) => m.userId === userId);
+
 
 // Middlewares
 app.use(cors());
@@ -193,8 +205,12 @@ let nextId = 1;
 
 // GET /movimientos -> lista todos
 app.get("/movimientos", authMiddleware, (req, res) => {
-  res.json(movimientos);
+  const userId = req.user.id;
+  const movsUsuario = movimientos.filter((m) => m.userId === userId);
+  
+  res.json(movsUsuario);
 });
+
 
 // POST /movimientos -> crea uno nuevo
 app.post("/movimientos", authMiddleware, (req, res) => {
@@ -208,6 +224,7 @@ app.post("/movimientos", authMiddleware, (req, res) => {
 
   const nuevoMovimiento = {
     id: nextId++,
+    userId: req.user.id,      // 👈 GUARDAR DUEÑO DEL MOVIMIENTO
     tipo,
     categoria,
     monto: Number(monto),
@@ -218,6 +235,7 @@ app.post("/movimientos", authMiddleware, (req, res) => {
   movimientos.push(nuevoMovimiento);
   res.status(201).json(nuevoMovimiento);
 });
+
 
 // PUT /movimientos/:id -> actualiza uno
 app.put("/movimientos/:id", authMiddleware, (req, res) => {
@@ -263,8 +281,11 @@ let nextMetaId = 1;
 
 // GET /metas -> lista todas las metas
 app.get("/metas", authMiddleware, (req, res) => {
-  res.json(metas);
+  const userId = req.user.id;
+  const metasUsuario = metas.filter((m) => m.userId === userId);
+  res.json(metasUsuario);
 });
+
 
 // POST /metas -> crea una nueva meta
 app.post("/metas", authMiddleware, (req, res) => {
@@ -279,6 +300,7 @@ app.post("/metas", authMiddleware, (req, res) => {
 
   const nuevaMeta = {
     id: nextMetaId++,
+    userId: req.user.id,   // 👈 DUEÑO DE LA META
     nombre,
     montoObjetivo: Number(montoObjetivo),
     montoActual: montoActual ? Number(montoActual) : 0,
@@ -289,6 +311,7 @@ app.post("/metas", authMiddleware, (req, res) => {
   metas.push(nuevaMeta);
   res.status(201).json(nuevaMeta);
 });
+
 
 // PUT /metas/:id -> actualiza datos de una meta
 app.put("/metas/:id", authMiddleware, (req, res) => {
@@ -361,12 +384,85 @@ app.get("/divisas", async (req, res) => {
 });
 
 
+app.get("/analisis-ia", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const movsUsuario = movimientos.filter((m) => m.userId === userId);
+    const metasUsuario = metas.filter((m) => m.userId === userId);
+
+    if (movsUsuario.length === 0 && metasUsuario.length === 0) {
+      return res.status(400).json({
+        ok: false,
+        error: "No hay datos suficientes para hacer un análisis todavía.",
+      });
+    }
+
+    const textoMovs = movsUsuario
+      .map(
+        (m) =>
+          `${m.fecha} | ${m.tipo} | ${m.categoria} | ${m.monto} | ${
+            m.descripcion || ""
+          }`
+      )
+      .join("\n");
+
+    const textoMetas = metasUsuario
+      .map(
+        (m) =>
+          `${m.nombre} | objetivo: ${m.montoObjetivo} | actual: ${m.montoActual}`
+      )
+      .join("\n");
+
+    const prompt = `
+Te paso movimientos financieros y metas de ahorro de un usuario.
+
+Con esa info, responde en este formato:
+
+1. Resumen de la situación actual (2 a 4 líneas)
+2. 3 consejos concretos de ahorro o mejora
+3. Si ves algún riesgo o alerta, descríbelo en 1 o 2 líneas
+
+Usa pesos chilenos (CLP), sé amable y directo.
+
+Movimientos:
+${textoMovs || "Sin movimientos registrados."}
+
+Metas:
+${textoMetas || "Sin metas registradas."}
+`;
+
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
+
+    const result = await model.generateContent(prompt);
+    const respuesta = result.response.text();
+
+    res.json({
+      ok: true,
+      analisis: respuesta,
+    });
+  } catch (err) {
+    console.error("Error en /analisis-ia (Gemini):", err);
+    res.status(500).json({
+      ok: false,
+      error: "Error al generar análisis con IA",
+    });
+  }
+});
+
+
+
 
 
 // ---------------- Endpoint de salud ----------------
 app.get("/health", (req, res) => {
   res.json({ status: "ok", message: "Backend MiGasto funcionando" });
 });
+
+
+
+
+
 
 // Arrancar servidor
 app.listen(PORT, () => {

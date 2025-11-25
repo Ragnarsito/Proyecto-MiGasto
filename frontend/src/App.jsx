@@ -1063,7 +1063,107 @@ function PequeñoFormularioActualizacionMonto({ meta, onUpdate }) {
 }
 
 function AnalisisIAPage() {
-  return <h2 style={{ fontSize: "20px", fontWeight: 600 }}>Análisis con IA</h2>;
+  const [loading, setLoading] = useState(false);
+  const [analisis, setAnalisis] = useState("");
+  const [error, setError] = useState("");
+
+  const handleAnalizar = async () => {
+    setLoading(true);
+    setError("");
+    setAnalisis("");
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("Debes iniciar sesión para usar el análisis con IA.");
+        setLoading(false);
+        return;
+      }
+
+      const res = await fetch(`${API_URL}/analisis-ia`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data.ok === false) {
+        setError(data.error || "Error al generar el análisis.");
+        setLoading(false);
+        return;
+      }
+
+      setAnalisis(data.analisis);
+    } catch (err) {
+      console.error(err);
+      setError("No se pudo conectar con el servidor.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <h2
+        style={{
+          fontSize: "20px",
+          fontWeight: 600,
+          marginBottom: "16px",
+          textAlign: "center",
+        }}
+      >
+        Análisis con IA
+      </h2>
+
+      <div style={{ textAlign: "center", marginBottom: "16px" }}>
+        <button
+          onClick={handleAnalizar}
+          disabled={loading}
+          style={{
+            padding: "10px 18px",
+            borderRadius: "6px",
+            border: "none",
+            backgroundColor: "#3b82f6",
+            color: "white",
+            cursor: "pointer",
+            fontWeight: 500,
+          }}
+        >
+          {loading ? "Generando análisis..." : "Generar análisis"}
+        </button>
+      </div>
+
+      {error && (
+        <p
+          style={{
+            color: "#f87171",
+            textAlign: "center",
+            marginBottom: "12px",
+          }}
+        >
+          {error}
+        </p>
+      )}
+
+      {analisis && (
+        <div
+          style={{
+            maxWidth: "800px",
+            margin: "0 auto",
+            backgroundColor: "#111827",
+            padding: "16px 20px",
+            borderRadius: "8px",
+            whiteSpace: "pre-wrap",
+            lineHeight: 1.6,
+          }}
+        >
+          {analisis}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ------------------- Página Movimientos (con API) -------------------
