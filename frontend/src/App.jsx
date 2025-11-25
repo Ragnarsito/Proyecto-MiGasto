@@ -51,7 +51,9 @@ function Layout({ children, auth, onLogout, lang, setLang, t }) {
       <div
         style={{
           width: "100%",
-          maxWidth: "420px", // 📱 móvil por defecto
+          maxWidth: "1920px", // sirve hasta 4k
+          margin: "0 auto",
+          padding: "0 20px",
         }}
       >
         <header
